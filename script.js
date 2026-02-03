@@ -5,10 +5,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnCopy = document.getElementById("copy");
     const btnClear = document.getElementById("clear");
 
-    // --- Config ---
-    const REAL_CHAINS = 10; 
-    const FAKE_CHAINS = 3;
-    const VAR_LEN = 60; // Extra long variable names
+    // --- TUNED FOR ~5000 CHARACTERS ---
+    const REAL_CHAINS = 2; // Keeps it compact
+    const VAR_LEN = 20;    // Shorter vars (20 chars) to save space
 
     btnObfuscate.onclick = () => {
         const code = input.value;
@@ -17,15 +16,19 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             let payload = code;
 
-            // 1. Apply 10 Real Layers of Encryption
-            for (let i = 0; i < REAL_CHAINS; i++) {
+            // 1. Layer 1
+            payload = createRealLayer(payload);
+
+            // 2. Layer 2 (Final Layer)
+            // We loop just enough to scramble it without making it huge
+            for (let i = 0; i < REAL_CHAINS - 1; i++) {
                 payload = createRealLayer(payload);
             }
 
-            // 2. Wrap in the "Fake Chain" Logic (Dead ends)
+            // 3. Inject Fake Chains (Dead Ends)
             payload = injectFakeChains(payload);
 
-            // 3. Final Assembly
+            // 4. Final Assembly
             let final = "-- Obfuscated by Zexon Development\n";
             final += payload;
             final += "\n-- Zexon Obfuscator";
@@ -48,12 +51,11 @@ document.addEventListener("DOMContentLoaded", () => {
         output.value = "";
     };
 
-    // --- Generators ---
+    // --- GENERATORS ---
 
-    // Generates syntax-safe symbol soup. NO comments allowed here.
-    function getNoise(len = 100) {
-        // Safe symbols that won't break strings
-        const chars = "!@$%^&*()_+=-{}:<>?,./|~`"; 
+    function getSymbols(len = 20) {
+        // Reduced noise length to keep file size down
+        const chars = "!@#$%^&*()_+=-[]{};':,.<>/?|`~"; 
         let res = "";
         for (let i = 0; i < len; i++) {
             res += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -61,7 +63,6 @@ document.addEventListener("DOMContentLoaded", () => {
         return res;
     }
 
-    // Generates "Visual Hell" variable names
     function getVar() {
         const prefix = "_";
         const chaos = ["l", "I", "1", "0", "O", "Z", "X"];
@@ -69,10 +70,10 @@ document.addEventListener("DOMContentLoaded", () => {
         for (let i = 0; i < VAR_LEN; i++) {
              res += chaos[Math.floor(Math.random() * chaos.length)];
         }
-        return prefix + res + "_" + Math.floor(Math.random() * 999999).toString(16);
+        return prefix + res; 
     }
 
-    // --- Layer Logic ---
+    // --- LOGIC ---
 
     function createRealLayer(innerCode) {
         const vTab = getVar();
@@ -80,27 +81,21 @@ document.addEventListener("DOMContentLoaded", () => {
         const vFunc = getVar();
         const vKey = getVar();
         const vIdx = getVar();
+        const vJunk = getVar();
         
-        // Luau uses bit32 often, but standard Lua uses operators. 
-        // We will use standard operators (xor) compatible with newer Luau.
-        const keyVal = Math.floor(Math.random() * 120) + 1;
-        
-        // Encrypt the code into bytes
+        const keyVal = Math.floor(Math.random() * 255);
         const bytes = innerCode.split('').map(c => c.charCodeAt(0) ^ keyVal);
-        
-        // Massive noise strings to bloat file size
-        const noise1 = getNoise(200);
-        const noise2 = getNoise(200);
+        const noise = getSymbols(30); 
 
         return `
+local ${vJunk} = "${noise}"
 local ${vKey} = ${keyVal}
 local ${vTab} = {${bytes.join(',')}}
 local ${vStr} = {}
 
--- Fake Math Loop to waste time
-local ${getVar()} = 1
-while ${getVar()} > 100 do
-   ${getVar()} = ${getVar()} % 5
+-- Time Waster
+for i=1, ${Math.floor(Math.random() * 10) + 2} do
+    local _ = math.sin(i)
 end
 
 for ${vIdx} = 1, #${vTab} do
@@ -113,42 +108,23 @@ if ${vFunc} then ${vFunc}() end
     }
 
     function injectFakeChains(realPayload) {
-        // This wraps the real code in a control structure with 3 fake paths
-        
         const vState = getVar();
-        const vFake1 = getVar(); // Fake var
-        const vFake2 = getVar(); // Fake var
-        
-        // We simply append the real payload but surround it with fake math nonsense
+        const vFake1 = getVar();
         
         return `
-local ${vState} = (5 * 4) + 1 -- Logic leads to Real Path
+local ${vState} = 55
 
-if ${vState} == 999 then
-    -- FAKE CHAIN 1
-    local ${vFake1} = 0
-    repeat
-        ${vFake1} = ${vFake1} + math.random(1,9)
-    until ${vFake1} > 999999
-    print("${getNoise(20)}") 
+if ${vState} == 99 then
+    -- [FAKE CHAIN]
+    local ${vFake1} = "${getSymbols(50)}"
+    print("Error")
 
-elseif ${vState} == 888 then
-    -- FAKE CHAIN 2
-    local ${vFake2} = {}
-    for i=1, 500 do
-        table.insert(${vFake2}, string.char(math.random(33, 126)))
-    end
-    print("Error 404")
-
-elseif ${vState} == 777 then
-    -- FAKE CHAIN 3
-    local x = math.pi * 500
-    x = x ^ 2
-    x = x % 5
+elseif ${vState} == 55 then
+    -- [REAL CHAIN]
+    ${realPayload}
 
 else
-    -- REAL CHAIN
-    ${realPayload}
+    error("${getSymbols(10)}")
 end
 `;
     }
