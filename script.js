@@ -5,30 +5,22 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnCopy = document.getElementById("copy");
     const btnClear = document.getElementById("clear");
 
-    // --- TUNED FOR ~5000 CHARACTERS ---
-    const REAL_CHAINS = 2; // Keeps it compact
-    const VAR_LEN = 20;    // Shorter vars (20 chars) to save space
+    // --- FINAL OPTIMIZED CONFIG ---
+    // NO LOOPS. We only encode ONCE to prevent 41M character files.
+    const VAR_LEN = 25; // Good balance of annoying vs size
 
     btnObfuscate.onclick = () => {
         const code = input.value;
         if (!code.trim()) return;
 
         try {
-            let payload = code;
+            // 1. Single Pass Encryption (The fix for size)
+            let payload = createSingleChaosLayer(code);
 
-            // 1. Layer 1
-            payload = createRealLayer(payload);
-
-            // 2. Layer 2 (Final Layer)
-            // We loop just enough to scramble it without making it huge
-            for (let i = 0; i < REAL_CHAINS - 1; i++) {
-                payload = createRealLayer(payload);
-            }
-
-            // 3. Inject Fake Chains (Dead Ends)
+            // 2. Inject Fake Chains around it
             payload = injectFakeChains(payload);
 
-            // 4. Final Assembly
+            // 3. Final Assembly
             let final = "-- Obfuscated by Zexon Development\n";
             final += payload;
             final += "\n-- Zexon Obfuscator";
@@ -54,7 +46,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- GENERATORS ---
 
     function getSymbols(len = 20) {
-        // Reduced noise length to keep file size down
         const chars = "!@#$%^&*()_+=-[]{};':,.<>/?|`~"; 
         let res = "";
         for (let i = 0; i < len; i++) {
@@ -70,22 +61,27 @@ document.addEventListener("DOMContentLoaded", () => {
         for (let i = 0; i < VAR_LEN; i++) {
              res += chaos[Math.floor(Math.random() * chaos.length)];
         }
-        return prefix + res; 
+        return prefix + res + "_" + Math.floor(Math.random() * 999).toString(16);
     }
 
     // --- LOGIC ---
 
-    function createRealLayer(innerCode) {
+    function createSingleChaosLayer(innerCode) {
         const vTab = getVar();
         const vStr = getVar();
         const vFunc = getVar();
         const vKey = getVar();
         const vIdx = getVar();
-        const vJunk = getVar();
+        const vJunk = getVar(); // Visual noise variable
         
+        // Random XOR Key
         const keyVal = Math.floor(Math.random() * 255);
+        
+        // Convert input to byte array
         const bytes = innerCode.split('').map(c => c.charCodeAt(0) ^ keyVal);
-        const noise = getSymbols(30); 
+        
+        // Add just enough noise to look scary, but not bloated
+        const noise = getSymbols(40); 
 
         return `
 local ${vJunk} = "${noise}"
@@ -93,8 +89,9 @@ local ${vKey} = ${keyVal}
 local ${vTab} = {${bytes.join(',')}}
 local ${vStr} = {}
 
--- Time Waster
-for i=1, ${Math.floor(Math.random() * 10) + 2} do
+-- [Fake Math Logic]
+local ${getVar()} = 0
+for i=1, ${Math.floor(Math.random() * 8) + 2} do
     local _ = math.sin(i)
 end
 
@@ -112,19 +109,20 @@ if ${vFunc} then ${vFunc}() end
         const vFake1 = getVar();
         
         return `
-local ${vState} = 55
+local ${vState} = 777
 
-if ${vState} == 99 then
-    -- [FAKE CHAIN]
+if ${vState} == 999 then
+    -- [FAKE DEAD END]
     local ${vFake1} = "${getSymbols(50)}"
-    print("Error")
+    print("Error 404")
 
-elseif ${vState} == 55 then
+elseif ${vState} == 777 then
     -- [REAL CHAIN]
     ${realPayload}
 
 else
-    error("${getSymbols(10)}")
+    -- [FAKE DEAD END]
+    while true do end
 end
 `;
     }
